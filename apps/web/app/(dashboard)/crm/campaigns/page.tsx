@@ -12,7 +12,7 @@ import CampaignModal from '@/components/crm/campaigns/CampaignModal';
 import { useCampaignDetail } from '@/hooks/useCampaignDetail';
 import type { Campaign } from '@anoud-job/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 export default function CampaignsPage() {
   const toast = useToast();

@@ -7,7 +7,7 @@ import Avatar from '@/components/ui/Avatar';
 import { createClient } from '@/lib/supabase/client';
 import { apiFetch } from '@/lib/api/client';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 export default function MyProfileTab() {
   const toast = useToast();

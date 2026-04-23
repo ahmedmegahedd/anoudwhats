@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/Toast';
 import type { Campaign } from '@anoud-job/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 const CHANNELS = ['WhatsApp', 'Facebook Ads', 'Instagram', 'Google Ads', 'Cold Import', 'Other'];
 const SOURCES = ['Paid Ads', 'Organic', 'Referral', 'Cold Outreach', 'Event', 'Other'];

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api/client';
 import { useToast } from '@/components/ui/Toast';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 interface DayHours {
   open: boolean;

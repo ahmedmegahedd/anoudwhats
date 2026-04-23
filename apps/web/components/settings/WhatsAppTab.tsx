@@ -5,7 +5,7 @@ import { apiFetch } from '@/lib/api/client';
 import { useToast } from '@/components/ui/Toast';
 import { createClient } from '@/lib/supabase/client';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 interface ConnectionResult {
   connected: boolean;

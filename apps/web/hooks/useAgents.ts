@@ -5,7 +5,7 @@ import { apiFetch } from '@/lib/api/client';
 import { useCallback, useEffect, useState } from 'react';
 import type { AgentWithTeam } from '@/lib/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 export function useAgents() {
   const [agents, setAgents] = useState<AgentWithTeam[]>([]);

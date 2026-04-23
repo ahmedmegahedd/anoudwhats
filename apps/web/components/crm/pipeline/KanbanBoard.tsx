@@ -19,7 +19,7 @@ import DealCardOverlay from './DealCardOverlay';
 import { PIPELINE_STAGES } from './shared';
 import type { DealCard as DealCardType } from '@/hooks/usePipeline';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 interface Props {
   stages: Record<string, DealCardType[]>;

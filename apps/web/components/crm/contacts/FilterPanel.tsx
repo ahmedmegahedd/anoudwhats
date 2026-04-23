@@ -7,7 +7,7 @@ import { useCampaigns } from '@/hooks/useCampaigns';
 import { useAgents } from '@/hooks/useAgents';
 import type { ContactFilters } from '@/hooks/useContacts';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 const PIPELINE_STAGES = [
   'Lead',

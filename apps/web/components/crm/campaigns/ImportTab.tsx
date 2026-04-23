@@ -5,7 +5,7 @@ import { apiFetch } from '@/lib/api/client';
 import { useRef, useState } from 'react';
 import { useToast } from '@/components/ui/Toast';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 const KNOWN_COLUMNS = ['name', 'phone', 'email', 'company', 'deal_value'];
 

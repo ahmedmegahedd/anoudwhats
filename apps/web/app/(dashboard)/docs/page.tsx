@@ -10,7 +10,7 @@ import DocCard from '@/components/docs/DocCard';
 import DocModal from '@/components/docs/DocModal';
 import type { ReadyDoc } from '@anoud-job/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 export default function DocsPage() {
   const toast = useToast();

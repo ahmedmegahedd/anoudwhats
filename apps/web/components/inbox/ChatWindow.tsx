@@ -11,7 +11,7 @@ import SendWaTemplateModal from '@/components/templates/SendWaTemplateModal';
 import { extractBodyText } from '@/components/templates/WaTemplatesTab';
 import type { Message, Profile, InternalTemplate, WaTemplate } from '@anoud-job/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 interface ContactInfo {
   id: string;

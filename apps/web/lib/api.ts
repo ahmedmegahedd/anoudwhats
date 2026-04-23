@@ -1,9 +1,8 @@
 import { apiFetch } from '@/lib/api/client';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await apiFetch(`${API_URL}${path}`, init);
+  // All API routes are now served from the same Next.js app under /api
+  const res = await apiFetch(`/api${path}`, init);
 
   if (!res.ok) {
     let message = `HTTP ${res.status}`;

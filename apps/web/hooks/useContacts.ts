@@ -5,7 +5,7 @@ import { apiFetch } from '@/lib/api/client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Contact } from '@anoud-job/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 export interface ContactRowWithRelations extends Contact {
   campaign: { id: string; name: string } | null;

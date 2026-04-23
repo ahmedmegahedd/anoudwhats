@@ -12,7 +12,7 @@ import ImageLightbox from '@/components/attachments/ImageLightbox';
 import type { AttachmentRow } from '@/components/attachments/AttachmentCard';
 import type { AttachmentFileType } from '@anoud-job/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 type TypeFilter = 'ALL' | AttachmentFileType;
 type ViewMode = 'grid' | 'list';

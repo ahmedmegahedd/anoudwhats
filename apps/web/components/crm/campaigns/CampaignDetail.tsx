@@ -14,7 +14,7 @@ import { formatDateRange, getStatus } from './CampaignCard';
 import type { Campaign } from '@anoud-job/types';
 import type { CampaignDetailData } from '@/hooks/useCampaignDetail';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 type Tab = 'leads' | 'import' | 'bulk';
 

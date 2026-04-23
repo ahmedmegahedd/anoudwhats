@@ -4,7 +4,7 @@ import { apiFetch } from '@/lib/api/client';
 
 import { useEffect, useState } from 'react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 export interface ContactStatsData {
   total: number;

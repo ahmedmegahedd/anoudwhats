@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/Toast';
 import type { AutomationLog, AutomationRule, AutomationResult } from '@anoud-job/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+const API_URL = '/api';
 
 type ResultFilter = 'ALL' | AutomationResult;
 

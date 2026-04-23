@@ -38,7 +38,7 @@ export default function PipelinePage() {
   async function handleOpenChat(deal: DealCard) {
     // Navigate to inbox with the contact's conversation
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+      const API_URL = '/api';
       const res = await apiFetch(`${API_URL}/contacts/${deal.id}`);
       if (!res.ok) throw new Error('not found');
       const data = (await res.json()) as {
