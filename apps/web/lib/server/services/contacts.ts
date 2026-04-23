@@ -440,6 +440,128 @@ export async function exportContactsCsv(
   return lines.join('\n');
 }
 
+export interface ImportResult {
+  total: number;
+  created: number;
+  skipped: number;
+  errors: Array<{ row: number; phone: string | null; reason: string }>;
+}
+
+export async function importContactsCsv(csvText: string): Promise<ImportResult> {
+  const rows = parseCsv(csvText);
+  if (rows.length === 0) {
+    throw new BadRequestError('CSV is empty');
+  }
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const idx = (name: string) => header.indexOf(name);
+
+  const iPhone = idx('phone');
+  if (iPhone < 0) {
+    throw new BadRequestError('CSV must include a "phone" column');
+  }
+  const iName = idx('name');
+  const iEmail = idx('email');
+  const iCompany = idx('company');
+  const iChannel = idx('channel');
+  const iSource = idx('source');
+  const iTags = idx('tags');
+  const iStage = idx('pipeline_stage');
+
+  const db = getSupabaseAdmin();
+  const result: ImportResult = {
+    total: rows.length - 1,
+    created: 0,
+    skipped: 0,
+    errors: [],
+  };
+
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (row.every((c) => c.trim() === '')) continue;
+    const phone = (row[iPhone] ?? '').trim();
+    if (!phone) {
+      result.errors.push({ row: r + 1, phone: null, reason: 'Missing phone' });
+      continue;
+    }
+    const { data: existing } = await db
+      .from('contacts')
+      .select('id')
+      .eq('phone', phone)
+      .maybeSingle();
+    if (existing) {
+      result.skipped += 1;
+      continue;
+    }
+    const tagsRaw = iTags >= 0 ? (row[iTags] ?? '').trim() : '';
+    const tags = tagsRaw
+      ? tagsRaw
+          .split(/[;,]/)
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : [];
+    const { error } = await db.from('contacts').insert({
+      phone,
+      name: iName >= 0 ? (row[iName] ?? '').trim() || null : null,
+      email: iEmail >= 0 ? (row[iEmail] ?? '').trim() || null : null,
+      company: iCompany >= 0 ? (row[iCompany] ?? '').trim() || null : null,
+      channel:
+        iChannel >= 0 ? (row[iChannel] ?? '').trim() || null : 'Imported',
+      source: iSource >= 0 ? (row[iSource] ?? '').trim() || null : 'CSV',
+      tags,
+      pipeline_stage:
+        iStage >= 0 ? (row[iStage] ?? '').trim() || 'Lead' : 'Lead',
+    });
+    if (error) {
+      result.errors.push({ row: r + 1, phone, reason: error.message });
+    } else {
+      result.created += 1;
+    }
+  }
+  return result;
+}
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let cur: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += c;
+      }
+      continue;
+    }
+    if (c === '"') {
+      inQuotes = true;
+    } else if (c === ',') {
+      cur.push(field);
+      field = '';
+    } else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      cur.push(field);
+      rows.push(cur);
+      cur = [];
+      field = '';
+    } else {
+      field += c;
+    }
+  }
+  if (field.length > 0 || cur.length > 0) {
+    cur.push(field);
+    rows.push(cur);
+  }
+  return rows.filter((r) => r.length > 0);
+}
+
 export function parseContactFilters(
   sp: URLSearchParams,
 ): ContactFilters {

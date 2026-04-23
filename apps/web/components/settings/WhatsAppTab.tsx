@@ -19,6 +19,11 @@ export default function WhatsAppTab() {
   const [connection, setConnection] = useState<ConnectionResult | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [origin, setOrigin] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') setOrigin(window.location.origin);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -69,7 +74,9 @@ export default function WhatsAppTab() {
   }
 
   const phoneNumberId = process.env.NEXT_PUBLIC_META_PHONE_NUMBER_ID ?? '';
-  const webhookUrl = `${API_URL}/webhook/whatsapp`;
+  const webhookUrl = origin
+    ? `${origin}${API_URL}/webhook/whatsapp`
+    : `${API_URL}/webhook/whatsapp`;
 
   return (
     <div className="max-w-2xl space-y-5">

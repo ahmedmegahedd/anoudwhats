@@ -3,6 +3,7 @@
 import { apiFetch } from '@/lib/api/client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useToast } from '@/components/ui/Toast';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/auth/useAuth';
 import { useRealtimeInbox } from '@/hooks/useRealtimeInbox';
@@ -33,12 +34,15 @@ interface ChatWindowProps {
 
 export default function ChatWindow({ conversationId, onBack }: ChatWindowProps) {
   const { profile } = useAuth();
+  const toast = useToast();
   const currentAgentId = profile?.id ?? null;
   const [conversation, setConversation] = useState<ConversationInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Assign dropdown
   const [showAssign, setShowAssign] = useState(false);
@@ -64,12 +68,8 @@ export default function ChatWindow({ conversationId, onBack }: ChatWindowProps) 
 
   const fetchAll = useCallback(async () => {
     const db = createClient();
-    const [convResult, msgsResult] = await Promise.all([
-      db
-        .from('conversations')
-        .select('id, status, assigned_agent_id, contacts(id, name, phone)')
-        .eq('id', conversationId)
-        .single(),
+    const [convRes, msgsResult] = await Promise.all([
+      apiFetch(`${API_URL}/conversations/${conversationId}`),
       db
         .from('messages')
         .select('*')
@@ -77,15 +77,14 @@ export default function ChatWindow({ conversationId, onBack }: ChatWindowProps) 
         .order('created_at', { ascending: true }),
     ]);
 
-    if (convResult.data) {
-      setConversation({
-        id: convResult.data.id,
-        status: convResult.data.status,
-        assigned_agent_id: convResult.data.assigned_agent_id,
-        contact: convResult.data.contacts as unknown as ContactInfo,
-      });
+    if (convRes.ok) {
+      const conv = (await convRes.json()) as ConversationInfo;
+      setConversation(conv);
+      setMessages((msgsResult.data ?? []) as Message[]);
+    } else {
+      setConversation(null);
+      setMessages([]);
     }
-    setMessages((convResult.data ? msgsResult.data : []) as Message[]);
     setLoading(false);
   }, [conversationId]);
 
@@ -139,6 +138,33 @@ export default function ChatWindow({ conversationId, onBack }: ChatWindowProps) 
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       send();
+    }
+  }
+
+  async function handleFilePick(file: File) {
+    if (!currentAgentId || uploading) return;
+    if (file.size > 16 * 1024 * 1024) {
+      toast('File exceeds 16MB limit', 'error');
+      return;
+    }
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('conversationId', conversationId);
+      form.append('sentBy', currentAgentId);
+      form.append('file', file);
+      if (input.trim()) form.append('caption', input.trim());
+      const res = await apiFetch(`${API_URL}/messages/send-media`, {
+        method: 'POST',
+        body: form,
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setInput('');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Upload failed', 'error');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
@@ -289,6 +315,37 @@ export default function ChatWindow({ conversationId, onBack }: ChatWindowProps) 
           >
             T
           </button>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading || !currentAgentId}
+            title="Attach file"
+            className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors disabled:opacity-50"
+            aria-label="Attach file"
+          >
+            {uploading ? (
+              <span className="text-xs">…</span>
+            ) : (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 10-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+                />
+              </svg>
+            )}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFilePick(f);
+            }}
+            className="hidden"
+          />
 
           <textarea
             ref={textareaRef}

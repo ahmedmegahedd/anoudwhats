@@ -1,13 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { apiFetch } from '@/lib/api/client';
+import { useAuth } from '@/lib/auth/useAuth';
 import { useRealtimeInbox } from '@/hooks/useRealtimeInbox';
 import { formatRelativeTime, initials } from '@/lib/format';
 import type { Conversation } from '@anoud-job/types';
-
-// TODO: replace with auth session (Part 10)
-const CURRENT_AGENT_ID = '00000000-0000-0000-0000-000000000000';
 
 type Tab = 'all' | 'mine' | 'unassigned' | 'resolved';
 
@@ -31,57 +29,48 @@ interface ConversationListProps {
 }
 
 export default function ConversationList({ selectedId, onSelect }: ConversationListProps) {
+  const { profile } = useAuth();
+  const currentAgentId = profile?.id ?? null;
   const [rows, setRows] = useState<ConversationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<Tab>('all');
+  const [outsideHours, setOutsideHours] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const res = await apiFetch('/api/settings/business-hours/status');
+        if (!res.ok) return;
+        const data = (await res.json()) as { outsideBusinessHours: boolean };
+        if (!cancelled) setOutsideHours(data.outsideBusinessHours);
+      } catch {
+        /* ignore */
+      }
+    };
+    check();
+    const id = setInterval(check, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   const fetchConversations = useCallback(async () => {
-    const db = createClient();
-
-    const { data: convs, error } = await db
-      .from('conversations')
-      .select('id, status, last_message_at, assigned_agent_id, contacts(id, name, phone)')
-      .neq('status', 'archived')
-      .order('last_message_at', { ascending: false });
-
-    if (error || !convs) {
-      setLoading(false);
-      return;
-    }
-
-    // Fetch last message per conversation
-    const ids = convs.map((c) => c.id);
-    const { data: msgs } = await db
-      .from('messages')
-      .select('conversation_id, content, type, direction, created_at')
-      .in('conversation_id', ids)
-      .order('created_at', { ascending: false });
-
-    // Build last-message map (first seen per conv_id = most recent)
-    const lastMsgMap: Record<string, ConversationRow['lastMessage']> = {};
-    msgs?.forEach((m) => {
-      if (!lastMsgMap[m.conversation_id]) {
-        lastMsgMap[m.conversation_id] = {
-          content: m.content,
-          type: m.type,
-          direction: m.direction,
-          created_at: m.created_at,
-        };
+    try {
+      const res = await apiFetch('/api/conversations');
+      if (!res.ok) {
+        setLoading(false);
+        return;
       }
-    });
-
-    setRows(
-      convs.map((c) => ({
-        id: c.id,
-        status: c.status,
-        last_message_at: c.last_message_at,
-        assigned_agent_id: c.assigned_agent_id,
-        contact: c.contacts as unknown as { id: string; name: string | null; phone: string },
-        lastMessage: lastMsgMap[c.id] ?? null,
-      })),
-    );
-    setLoading(false);
+      const data = (await res.json()) as ConversationRow[];
+      setRows(data);
+    } catch (err) {
+      console.error('Failed to load conversations', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -127,7 +116,7 @@ export default function ConversationList({ selectedId, onSelect }: ConversationL
       tab === 'all'
         ? r.status !== 'resolved'
         : tab === 'mine'
-          ? r.assigned_agent_id === CURRENT_AGENT_ID
+          ? currentAgentId !== null && r.assigned_agent_id === currentAgentId
           : tab === 'unassigned'
             ? !r.assigned_agent_id && r.status === 'open'
             : r.status === 'resolved';
@@ -146,7 +135,23 @@ export default function ConversationList({ selectedId, onSelect }: ConversationL
     <div className="flex flex-col h-full w-full border-r border-gray-200 bg-white">
       {/* Header */}
       <div className="px-4 pt-4 pb-2 border-b border-gray-100">
-        <h2 className="text-base font-semibold text-gray-900 mb-3">Inbox</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-semibold text-gray-900">Inbox</h2>
+          <span
+            className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+              outsideHours
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-green-100 text-green-700'
+            }`}
+            title={
+              outsideHours
+                ? 'Outside business hours — auto-replies active'
+                : 'Open'
+            }
+          >
+            {outsideHours ? 'Closed' : 'Open'}
+          </span>
+        </div>
         <input
           type="text"
           placeholder="Search conversations..."

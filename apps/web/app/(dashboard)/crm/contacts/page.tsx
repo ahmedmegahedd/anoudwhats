@@ -14,6 +14,7 @@ import ContactsTable from '@/components/crm/contacts/ContactsTable';
 import ContactsCards from '@/components/crm/contacts/ContactsCards';
 import ContactDetailDrawer from '@/components/crm/contacts/ContactDetailDrawer';
 import ContactModal from '@/components/crm/contacts/ContactModal';
+import ImportContactsModal from '@/components/crm/contacts/ImportContactsModal';
 import {
   useContacts,
   type ContactFilters,
@@ -43,6 +44,7 @@ export default function ContactsPage() {
     null,
   );
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [knownChannels, setKnownChannels] = useState<string[]>([]);
   const [knownSources, setKnownSources] = useState<string[]>([]);
 
@@ -250,6 +252,13 @@ export default function ContactsPage() {
           </button>
 
           <button
+            onClick={() => setImportOpen(true)}
+            className="px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            Import CSV
+          </button>
+
+          <button
             onClick={exportCsv}
             className="px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
           >
@@ -387,6 +396,17 @@ export default function ContactsPage() {
             setEditing(null);
           }}
           onSaved={handleSaved}
+        />
+      )}
+
+      {/* Import modal */}
+      {importOpen && (
+        <ImportContactsModal
+          onClose={() => setImportOpen(false)}
+          onImported={() => {
+            refetch();
+            setStatsRefreshKey((k) => k + 1);
+          }}
         />
       )}
 

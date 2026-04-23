@@ -70,3 +70,59 @@ export async function sendWhatsAppTemplate(
   );
   return data?.messages?.[0]?.id ?? null;
 }
+
+export async function uploadMediaToMeta(
+  fileBuffer: Buffer,
+  mimeType: string,
+  fileName: string,
+): Promise<string> {
+  const phoneNumberId = requireEnv('META_PHONE_NUMBER_ID');
+  const accessToken = requireEnv('META_ACCESS_TOKEN');
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', mimeType);
+  form.append(
+    'file',
+    new Blob([new Uint8Array(fileBuffer)], { type: mimeType }),
+    fileName,
+  );
+  const res = await fetch(`${GRAPH_BASE}/${phoneNumberId}/media`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Meta media upload ${res.status}: ${text.slice(0, 500)}`);
+  }
+  const data = (await res.json()) as { id?: string };
+  if (!data.id) throw new Error('Meta media upload: no id returned');
+  return data.id;
+}
+
+export async function sendWhatsAppMedia(
+  to: string,
+  mediaId: string,
+  kind: 'image' | 'video' | 'audio' | 'document',
+  opts: { caption?: string; fileName?: string } = {},
+): Promise<string | null> {
+  const phoneNumberId = requireEnv('META_PHONE_NUMBER_ID');
+  const payload: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    to,
+    type: kind,
+  };
+  const mediaObj: Record<string, unknown> = { id: mediaId };
+  if (opts.caption && (kind === 'image' || kind === 'video' || kind === 'document')) {
+    mediaObj.caption = opts.caption;
+  }
+  if (opts.fileName && kind === 'document') {
+    mediaObj.filename = opts.fileName;
+  }
+  payload[kind] = mediaObj;
+  const data = await metaFetch<{ messages?: { id: string }[] }>(
+    `/${phoneNumberId}/messages`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  );
+  return data?.messages?.[0]?.id ?? null;
+}
