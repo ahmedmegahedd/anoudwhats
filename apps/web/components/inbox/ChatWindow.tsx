@@ -120,15 +120,16 @@ export default function ChatWindow({ conversationId, onBack }: ChatWindowProps) 
 
     setSending(true);
     try {
+      const payload: Record<string, unknown> = {
+        conversationId,
+        type: 'text',
+        content: text,
+      };
+      if (currentAgentId) payload.sentBy = currentAgentId;
       const res = await apiFetch(`${API_URL}/messages/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conversationId,
-          type: 'text',
-          content: text,
-          sentBy: currentAgentId,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error(await res.text());
       setInput('');
@@ -148,7 +149,7 @@ export default function ChatWindow({ conversationId, onBack }: ChatWindowProps) 
   }
 
   async function handleFilePick(file: File) {
-    if (!currentAgentId || uploading) return;
+    if (uploading) return;
     if (file.size > 16 * 1024 * 1024) {
       toast('File exceeds 16MB limit', 'error');
       return;
@@ -157,7 +158,7 @@ export default function ChatWindow({ conversationId, onBack }: ChatWindowProps) 
     try {
       const form = new FormData();
       form.append('conversationId', conversationId);
-      form.append('sentBy', currentAgentId);
+      if (currentAgentId) form.append('sentBy', currentAgentId);
       form.append('file', file);
       if (input.trim()) form.append('caption', input.trim());
       const res = await apiFetch(`${API_URL}/messages/send-media`, {
@@ -330,7 +331,7 @@ export default function ChatWindow({ conversationId, onBack }: ChatWindowProps) 
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading || !currentAgentId}
+            disabled={uploading}
             title="Attach file"
             className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 transition-colors disabled:opacity-50"
             aria-label="Attach file"

@@ -32,8 +32,10 @@ export async function POST(req: NextRequest) {
       body.templateComponents,
       'templateComponents',
     );
-    const explicitSentBy = assertUuid(body.sentBy, 'sentBy');
-    const sentBy = (explicitSentBy as string | undefined) ?? user.id;
+    const explicitSentBy = assertUuid(body.sentBy, 'sentBy', {
+      nullable: true,
+    });
+    const sentBy = (explicitSentBy as string | null | undefined) ?? user.id;
 
     try {
       const result = await sendMessage({
