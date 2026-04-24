@@ -1,18 +1,11 @@
 'use client';
 
-import { createClient } from '@/lib/supabase/client';
-
 const REQUEST_TIMEOUT_MS = 30_000;
 
 export async function apiFetch(
   input: string,
   init?: RequestInit,
 ): Promise<Response> {
-  const supabase = createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
   const incomingHeaders =
     (init?.headers as Record<string, string> | undefined) ?? {};
   const headers: Record<string, string> = { ...incomingHeaders };
@@ -23,10 +16,6 @@ export async function apiFetch(
     headers['Content-Type'] = 'application/json';
   }
 
-  if (session?.access_token) {
-    headers['Authorization'] = `Bearer ${session.access_token}`;
-  }
-
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -35,6 +24,7 @@ export async function apiFetch(
     res = await fetch(input, {
       ...init,
       headers,
+      credentials: 'same-origin',
       signal: init?.signal ?? controller.signal,
     });
   } catch (err) {
