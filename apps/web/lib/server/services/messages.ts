@@ -20,6 +20,19 @@ export interface SendMessageInput {
   sentBy: string;
 }
 
+async function resolveSentBy(
+  db: ReturnType<typeof getSupabaseAdmin>,
+  sentBy: string | null,
+): Promise<string | null> {
+  if (!sentBy) return null;
+  const { data } = await db
+    .from('profiles')
+    .select('id')
+    .eq('id', sentBy)
+    .maybeSingle();
+  return data ? sentBy : null;
+}
+
 export async function sendMessage(dto: SendMessageInput): Promise<Message> {
   const db = getSupabaseAdmin();
 
@@ -64,6 +77,8 @@ export async function sendMessage(dto: SendMessageInput): Promise<Message> {
     throw new BadRequestError(`Meta API error: ${msg}`);
   }
 
+  const sentBy = await resolveSentBy(db, dto.sentBy);
+
   const { data: saved, error: msgErr } = await db
     .from('messages')
     .insert({
@@ -72,7 +87,7 @@ export async function sendMessage(dto: SendMessageInput): Promise<Message> {
       direction: 'outbound',
       type: dto.type,
       content: dto.content ?? null,
-      sent_by: dto.sentBy,
+      sent_by: sentBy,
       status: 'sent',
     })
     .select()
@@ -155,6 +170,8 @@ export async function sendMediaMessage(
     throw new BadRequestError(`Meta send media failed: ${msg}`);
   }
 
+  const sentBy = await resolveSentBy(db, dto.sentBy);
+
   const { data: saved, error: msgErr } = await db
     .from('messages')
     .insert({
@@ -164,7 +181,7 @@ export async function sendMediaMessage(
       type: messageType,
       content: dto.caption ?? null,
       media_mime: dto.file.mimeType,
-      sent_by: dto.sentBy,
+      sent_by: sentBy,
       status: 'sent',
     })
     .select()

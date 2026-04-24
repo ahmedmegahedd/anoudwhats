@@ -8,7 +8,7 @@ import { sendMediaMessage } from '@/lib/server/services/messages';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  return handleAuthedRaw(req, async ({ req }) => {
+  return handleAuthedRaw(req, async ({ user, req }) => {
     const contentType = req.headers.get('content-type') ?? '';
     if (!contentType.includes('multipart/form-data')) {
       return NextResponse.json(
@@ -20,16 +20,15 @@ export async function POST(req: NextRequest) {
     try {
       const form = await req.formData();
       const conversationId = form.get('conversationId');
-      const sentBy = form.get('sentBy');
+      const rawSentBy = form.get('sentBy');
       const caption = form.get('caption');
       const file = form.get('file');
 
       if (typeof conversationId !== 'string' || !isUuid(conversationId)) {
         throw new BadRequestError('conversationId must be a valid UUID');
       }
-      if (typeof sentBy !== 'string' || !isUuid(sentBy)) {
-        throw new BadRequestError('sentBy must be a valid UUID');
-      }
+      const sentBy =
+        typeof rawSentBy === 'string' && isUuid(rawSentBy) ? rawSentBy : user.id;
       if (!(file instanceof File)) {
         throw new BadRequestError('file field is required');
       }

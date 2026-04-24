@@ -11,8 +11,10 @@ import {
 import { sendMessage } from '@/lib/server/services/messages';
 import { HttpError } from '@/lib/server/errors';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
-  return handleAuthedRaw(req, async () => {
+  return handleAuthedRaw(req, async ({ user }) => {
     const body = await parseJson(req);
     const conversationId = assertUuid(body.conversationId, 'conversationId', {
       required: true,
@@ -30,7 +32,8 @@ export async function POST(req: NextRequest) {
       body.templateComponents,
       'templateComponents',
     );
-    const sentBy = assertUuid(body.sentBy, 'sentBy', { required: true })!;
+    const explicitSentBy = assertUuid(body.sentBy, 'sentBy');
+    const sentBy = (explicitSentBy as string | undefined) ?? user.id;
 
     try {
       const result = await sendMessage({
@@ -40,7 +43,7 @@ export async function POST(req: NextRequest) {
         templateName,
         templateLanguage,
         templateComponents,
-        sentBy: sentBy as string,
+        sentBy,
       });
       return NextResponse.json(result, { status: 201 });
     } catch (err) {
