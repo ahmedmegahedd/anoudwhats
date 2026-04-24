@@ -49,8 +49,62 @@ export interface ContactsPage {
 }
 
 const DEFAULT_LIMIT = 50;
-const SELECT =
-  '*, campaign:campaigns(id, name), agent:profiles!contacts_assigned_agent_id_fkey(id, full_name, avatar_url)';
+const SELECT = '*';
+
+async function enrichContacts(
+  rows: Contact[],
+): Promise<ContactRow[]> {
+  if (rows.length === 0) return [];
+  const db = getSupabaseAdmin();
+  const campaignIds = Array.from(
+    new Set(rows.map((r) => r.campaign_id).filter((v): v is string => !!v)),
+  );
+  const agentIds = Array.from(
+    new Set(
+      rows.map((r) => r.assigned_agent_id).filter((v): v is string => !!v),
+    ),
+  );
+
+  const campaignMap = new Map<string, { id: string; name: string }>();
+  if (campaignIds.length > 0) {
+    const { data: camps } = await db
+      .from('campaigns')
+      .select('id, name')
+      .in('id', campaignIds);
+    for (const c of camps ?? []) {
+      campaignMap.set(c.id as string, {
+        id: c.id as string,
+        name: (c.name as string) ?? '',
+      });
+    }
+  }
+
+  const agentMap = new Map<
+    string,
+    { id: string; full_name: string; avatar_url: string | null }
+  >();
+  if (agentIds.length > 0) {
+    const { data: agents } = await db
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .in('id', agentIds);
+    for (const a of agents ?? []) {
+      agentMap.set(a.id as string, {
+        id: a.id as string,
+        full_name: (a.full_name as string) ?? '',
+        avatar_url: (a.avatar_url as string | null) ?? null,
+      });
+    }
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    campaign: row.campaign_id ? campaignMap.get(row.campaign_id) ?? null : null,
+    agent: row.assigned_agent_id
+      ? agentMap.get(row.assigned_agent_id) ?? null
+      : null,
+  }));
+}
 
 function applyEqOrIn<T extends { eq: unknown; in: unknown }>(
   query: T,
@@ -104,8 +158,10 @@ export async function findAllContacts(
   const { data, error, count } = await query;
   if (error) throw new BadRequestError(error.message);
 
+  const enriched = await enrichContacts((data ?? []) as Contact[]);
+
   return {
-    data: (data ?? []) as unknown as ContactRow[],
+    data: enriched,
     total: count ?? 0,
     page,
     limit,
@@ -121,7 +177,7 @@ export async function findContact(id: string) {
     .maybeSingle();
   if (error) throw new BadRequestError(error.message);
   if (!data) throw new NotFoundError(`Contact ${id} not found`);
-  const contact = data as unknown as ContactRow;
+  const [contact] = await enrichContacts([data as Contact]);
 
   const { data: conversations } = await db
     .from('conversations')
@@ -329,7 +385,7 @@ export async function getContactStats() {
       .gte('created_at', startOfWeek.toISOString()),
     db
       .from('contacts')
-      .select('channel, source, pipeline_stage, campaign_id, campaigns(name)'),
+      .select('channel, source, pipeline_stage, campaign_id'),
   ]);
 
   const byChannel = new Map<string, number>();
@@ -337,15 +393,40 @@ export async function getContactStats() {
   const byStage = new Map<string, number>();
   const byCampaign = new Map<string, number>();
 
-  for (const row of (breakdownRes.data ?? []) as Array<Record<string, unknown>>) {
+  const breakdownRows = (breakdownRes.data ?? []) as Array<
+    Record<string, unknown>
+  >;
+
+  const campaignIds = Array.from(
+    new Set(
+      breakdownRows
+        .map((r) => r.campaign_id as string | null)
+        .filter((v): v is string => !!v),
+    ),
+  );
+  const campNameMap = new Map<string, string>();
+  if (campaignIds.length > 0) {
+    const { data: camps } = await db
+      .from('campaigns')
+      .select('id, name')
+      .in('id', campaignIds);
+    for (const c of camps ?? []) {
+      campNameMap.set(c.id as string, (c.name as string) ?? '');
+    }
+  }
+
+  for (const row of breakdownRows) {
     const ch = (row.channel as string) || 'Unknown';
     const src = (row.source as string) || 'Unknown';
     const stg = (row.pipeline_stage as string) || 'Lead';
     byChannel.set(ch, (byChannel.get(ch) ?? 0) + 1);
     bySource.set(src, (bySource.get(src) ?? 0) + 1);
     byStage.set(stg, (byStage.get(stg) ?? 0) + 1);
-    const camp = row.campaigns as { name: string } | null;
-    if (camp?.name) byCampaign.set(camp.name, (byCampaign.get(camp.name) ?? 0) + 1);
+    const campaignId = row.campaign_id as string | null;
+    const campName = campaignId ? campNameMap.get(campaignId) : null;
+    if (campName) {
+      byCampaign.set(campName, (byCampaign.get(campName) ?? 0) + 1);
+    }
   }
 
   const toSorted = (m: Map<string, number>) =>

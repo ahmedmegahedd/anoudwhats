@@ -58,7 +58,7 @@ export async function findAllCampaigns(filters: CampaignFilters = {}) {
   const db = getSupabaseAdmin();
   let query = db
     .from('campaigns')
-    .select('*, creator:profiles!campaigns_created_by_fkey(full_name)')
+    .select('*')
     .order('created_at', { ascending: false });
 
   if (filters.search?.trim()) {
@@ -73,32 +73,43 @@ export async function findAllCampaigns(filters: CampaignFilters = {}) {
   const { data, error } = await query;
   if (error) throw new BadRequestError(error.message);
 
-  const rows = (data ?? []) as Array<
-    Campaign & { creator: { full_name: string } | null }
-  >;
+  const rows = (data ?? []) as Campaign[];
+  if (rows.length === 0) return [];
 
   const ids = rows.map((r) => r.id);
+  const creatorIds = Array.from(
+    new Set(rows.map((r) => r.created_by).filter((v): v is string => !!v)),
+  );
+
   const statsMap = new Map<
     string,
     { lead_count: number; won_count: number; total_value: number }
   >();
+  for (const row of rows) {
+    statsMap.set(row.id, { lead_count: 0, won_count: 0, total_value: 0 });
+  }
 
-  if (ids.length > 0) {
-    const { data: contacts } = await db
-      .from('contacts')
-      .select('campaign_id, pipeline_stage, deal_value')
-      .in('campaign_id', ids);
+  const { data: contacts } = await db
+    .from('contacts')
+    .select('campaign_id, pipeline_stage, deal_value')
+    .in('campaign_id', ids);
+  for (const c of contacts ?? []) {
+    const id = c.campaign_id as string;
+    const stats = statsMap.get(id);
+    if (!stats) continue;
+    stats.lead_count++;
+    if ((c.pipeline_stage as string) === 'Won') stats.won_count++;
+    stats.total_value += (c.deal_value as number | null) ?? 0;
+  }
 
-    for (const row of rows) {
-      statsMap.set(row.id, { lead_count: 0, won_count: 0, total_value: 0 });
-    }
-    for (const c of contacts ?? []) {
-      const id = c.campaign_id as string;
-      const stats = statsMap.get(id);
-      if (!stats) continue;
-      stats.lead_count++;
-      if ((c.pipeline_stage as string) === 'Won') stats.won_count++;
-      stats.total_value += (c.deal_value as number | null) ?? 0;
+  const creatorMap = new Map<string, string>();
+  if (creatorIds.length > 0) {
+    const { data: profiles } = await db
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', creatorIds);
+    for (const p of profiles ?? []) {
+      creatorMap.set(p.id as string, (p.full_name as string) ?? '');
     }
   }
 
@@ -108,11 +119,12 @@ export async function findAllCampaigns(filters: CampaignFilters = {}) {
       won_count: 0,
       total_value: 0,
     };
-    const { creator, ...rest } = row;
     return {
-      ...(rest as Campaign),
+      ...row,
       ...stats,
-      created_by_name: creator?.full_name ?? null,
+      created_by_name: row.created_by
+        ? creatorMap.get(row.created_by) ?? null
+        : null,
     };
   });
 }

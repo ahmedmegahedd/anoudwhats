@@ -18,11 +18,13 @@ function toResponse(err: unknown): NextResponse {
     throw err;
   }
   if (err instanceof HttpError) {
+    if (err.status >= 500) console.error('[API error]', err);
     return NextResponse.json({ message: err.message }, { status: err.status });
   }
   const message =
     err instanceof Error ? err.message : 'Internal Server Error';
-  console.error('[API error]', err);
+  const stack = err instanceof Error ? err.stack : undefined;
+  console.error('[API error]', message, stack ?? err);
   return NextResponse.json({ message }, { status: 500 });
 }
 

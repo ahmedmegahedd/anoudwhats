@@ -136,20 +136,34 @@ export async function findAutomationLogs(filters: {
   const db = getSupabaseAdmin();
   let query = db
     .from('automation_logs')
-    .select('*, automation_rules(name), conversations(contacts(name, phone))')
+    .select('*')
     .order('created_at', { ascending: false })
     .limit(100);
   if (filters.rule_id) query = query.eq('rule_id', filters.rule_id);
   if (filters.result) query = query.eq('result', filters.result);
   const { data, error } = await query;
   if (error) throw new BadRequestError(error.message);
-  return (data ?? []).map((row: Record<string, unknown>) => {
-    const rule = row.automation_rules as { name: string } | null;
-    return {
-      ...(row as unknown as AutomationLog),
-      rule_name: rule?.name ?? null,
-    };
-  });
+  const rows = (data ?? []) as AutomationLog[];
+  if (rows.length === 0) return [];
+
+  const ruleIds = Array.from(
+    new Set(rows.map((r) => r.rule_id).filter((v): v is string => !!v)),
+  );
+  const ruleNameMap = new Map<string, string>();
+  if (ruleIds.length > 0) {
+    const { data: rules } = await db
+      .from('automation_rules')
+      .select('id, name')
+      .in('id', ruleIds);
+    for (const r of rules ?? []) {
+      ruleNameMap.set(r.id as string, (r.name as string) ?? '');
+    }
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    rule_name: row.rule_id ? ruleNameMap.get(row.rule_id) ?? null : null,
+  }));
 }
 
 // ═══════════════════════════════════════════════════════════════════════

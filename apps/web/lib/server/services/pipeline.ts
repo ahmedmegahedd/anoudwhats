@@ -39,9 +39,7 @@ export async function getPipelineBoard(filters: PipelineFilters = {}) {
   const db = getSupabaseAdmin();
   let query = db
     .from('contacts')
-    .select(
-      '*, agent:profiles!contacts_assigned_agent_id_fkey(id, full_name, avatar_url)',
-    )
+    .select('*')
     .order('created_at', { ascending: false });
   if (filters.campaign_id) query = query.eq('campaign_id', filters.campaign_id);
   if (filters.assigned_agent_id) {
@@ -52,7 +50,36 @@ export async function getPipelineBoard(filters: PipelineFilters = {}) {
   const { data, error } = await query;
   if (error) throw new BadRequestError(error.message);
 
-  const contacts = (data ?? []) as unknown as DealCard[];
+  const contactRows = (data ?? []) as Contact[];
+  const agentIds = Array.from(
+    new Set(
+      contactRows
+        .map((c) => c.assigned_agent_id)
+        .filter((v): v is string => !!v),
+    ),
+  );
+  const agentMap = new Map<
+    string,
+    { id: string; full_name: string; avatar_url: string | null }
+  >();
+  if (agentIds.length > 0) {
+    const { data: agents } = await db
+      .from('profiles')
+      .select('id, full_name, avatar_url')
+      .in('id', agentIds);
+    for (const a of agents ?? []) {
+      agentMap.set(a.id as string, {
+        id: a.id as string,
+        full_name: (a.full_name as string) ?? '',
+        avatar_url: (a.avatar_url as string | null) ?? null,
+      });
+    }
+  }
+  const contacts: DealCard[] = contactRows.map((c) => ({
+    ...c,
+    agent: c.assigned_agent_id ? agentMap.get(c.assigned_agent_id) ?? null : null,
+    last_message: null,
+  }));
   const contactIds = contacts.map((c) => c.id);
   const lastMessagesByContact = new Map<
     string,
