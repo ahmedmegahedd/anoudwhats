@@ -4,7 +4,6 @@ import { apiFetch } from '@/lib/api/client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '@/components/ui/Toast';
-import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/auth/useAuth';
 import { useRealtimeInbox } from '@/hooks/useRealtimeInbox';
 import { formatHHMM, initials } from '@/lib/format';
@@ -67,25 +66,32 @@ export default function ChatWindow({ conversationId, onBack }: ChatWindowProps) 
   }, [conversationId]);
 
   const fetchAll = useCallback(async () => {
-    const db = createClient();
-    const [convRes, msgsResult] = await Promise.all([
-      apiFetch(`${API_URL}/conversations/${conversationId}`),
-      db
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true }),
-    ]);
+    try {
+      const [convRes, msgsRes] = await Promise.all([
+        apiFetch(`${API_URL}/conversations/${conversationId}`),
+        apiFetch(`${API_URL}/conversations/${conversationId}/messages`),
+      ]);
 
-    if (convRes.ok) {
-      const conv = (await convRes.json()) as ConversationInfo;
-      setConversation(conv);
-      setMessages((msgsResult.data ?? []) as Message[]);
-    } else {
+      if (convRes.ok) {
+        const conv = (await convRes.json()) as ConversationInfo;
+        setConversation(conv);
+      } else {
+        setConversation(null);
+      }
+
+      if (msgsRes.ok) {
+        const msgs = (await msgsRes.json()) as Message[];
+        setMessages(msgs);
+      } else {
+        setMessages([]);
+      }
+    } catch (err) {
+      console.error('Failed to load conversation', err);
       setConversation(null);
       setMessages([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [conversationId]);
 
   // ── Auto-scroll on new messages ──────────────────────────────────────────
@@ -171,9 +177,15 @@ export default function ChatWindow({ conversationId, onBack }: ChatWindowProps) 
   // ── Assign conversation ──────────────────────────────────────────────────
   async function openAssignDropdown() {
     if (agents.length === 0) {
-      const db = createClient();
-      const { data } = await db.from('profiles').select('*');
-      setAgents((data as Profile[]) ?? []);
+      try {
+        const res = await apiFetch(`${API_URL}/agents`);
+        if (res.ok) {
+          const list = (await res.json()) as Profile[];
+          setAgents(list ?? []);
+        }
+      } catch (err) {
+        console.error('Failed to load agents', err);
+      }
     }
     setShowAssign(true);
   }
@@ -205,22 +217,22 @@ export default function ChatWindow({ conversationId, onBack }: ChatWindowProps) 
     setShowTemplates(true);
     if (templates.length === 0 && waTemplates.length === 0) {
       setTemplatesLoading(true);
-      const db = createClient();
-      const [internalRes, waRes] = await Promise.all([
-        db
-          .from('internal_templates')
-          .select('*')
-          .eq('is_auto', false)
-          .order('title', { ascending: true }),
-        db
-          .from('wa_templates')
-          .select('*')
-          .eq('status', 'APPROVED')
-          .order('name', { ascending: true }),
-      ]);
-      setTemplates((internalRes.data as InternalTemplate[]) ?? []);
-      setWaTemplates((waRes.data as WaTemplate[]) ?? []);
-      setTemplatesLoading(false);
+      try {
+        const [internalRes, waRes] = await Promise.all([
+          apiFetch(`${API_URL}/templates/internal?is_auto=false`),
+          apiFetch(`${API_URL}/templates/wa?status=APPROVED`),
+        ]);
+        if (internalRes.ok) {
+          setTemplates((await internalRes.json()) as InternalTemplate[]);
+        }
+        if (waRes.ok) {
+          setWaTemplates((await waRes.json()) as WaTemplate[]);
+        }
+      } catch (err) {
+        console.error('Failed to load templates', err);
+      } finally {
+        setTemplatesLoading(false);
+      }
     }
   }
 

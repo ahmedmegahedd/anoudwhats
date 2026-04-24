@@ -74,6 +74,17 @@ export async function listConversations(opts: {
   }));
 }
 
+export async function listMessages(conversationId: string) {
+  const db = getSupabaseAdmin();
+  const { data, error } = await db
+    .from('messages')
+    .select('*')
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true });
+  if (error) throw new Error(`listMessages failed: ${error.message}`);
+  return data ?? [];
+}
+
 export async function getConversation(id: string): Promise<{
   id: string;
   status: ConversationStatus;
